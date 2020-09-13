@@ -52,8 +52,9 @@ show_help() {
           will follow 16:9 aspect ratio, depending on your input
           renditions required.
 
-    -r : [OPTIONAL] file containing a description of the encoding renditions required -
-          a text file that contains 1 rendition per line like this:
+    -r : [OPTIONAL] file containing a description of the encoding renditions
+          required - a text file that contains 1 rendition per line
+          like this:
 
           640x360    800k     96k
           842x480    1400k    128k
@@ -100,6 +101,13 @@ show_help() {
     If packaging is selected on it's own, then this script assumes
     that encoding was done to the exact filename specifications output
     by that. You'll get errors otherwise.
+
+    Encoding will check the framerate of the inputfile and make sure output
+    renditions are compatible.
+
+    Encoding will check audio sample rate of the input file and make sure
+    output renditions are the same. (Currently mono inputs will recieve
+    mono outputs, stereo - stereo, etc.)
 
     You'll need ffmpeg installed on your system. (Edit this script if the name
     is not 'ffmpeg')

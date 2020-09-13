@@ -8,6 +8,8 @@ REQUIRES:
 * ffmpeg (tested with v4.3.1 on macOS)
 * shaka packager (tested with 2.4.3 on macOS)
 
+> **Note:** With thanks to ideas from mrbar42 - https://gist.github.com/mrbar42/ae111731906f958b396f30906004b3fa and the create-vod-hls.sh script.
+
 ```bash
   Usage:
 

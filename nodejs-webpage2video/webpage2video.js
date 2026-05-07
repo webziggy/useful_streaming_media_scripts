@@ -1,7 +1,6 @@
-// You'll need to make sure these packages are installed:
-// npm install sanitize-filename puppeteer-screen-recorder
-// (I think puppeteer is installed as a dependency of the screen-recorder, but if not - then install it, obviously)
-// You'll also want to check the Config - ffmpeg_Path -- that's where ffmpeg is installed by default on Mac with brew. You can try the default (just put null in there as per the docs and it should try to use it's own build)
+// Usage: npm install && node webpage2video.js "https://example.com" 1800
+// Note: puppeteer and puppeteer-screen-recorder are managed via package.json.
+// Ensure FFmpeg is installed on your system.
 
 // Usage: node webpage2video.js "https://staging30.dizplai.com/graphics/#/" 1800
 // Should record the graphics output for 1800 seconds (30 mins)
@@ -19,7 +18,7 @@ const vheight = 720;
 const Config = {
     followNewTab: true,
     fps: 50,
-    ffmpeg_Path: '/opt/homebrew/bin/ffmpeg',
+    ffmpeg_Path: null, // Set to null to use system ffmpeg, or provide a full path if necessary
     videoFrame: {
         width: vwidth,
         height: vheight,

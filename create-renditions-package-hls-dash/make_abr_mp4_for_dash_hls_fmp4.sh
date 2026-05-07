@@ -276,13 +276,13 @@ mkdir -p "${target}"
 
 # Find the frames per second of the input file, and calculate what
 # ffmpeg should be using based on for key frames interval
-key_frames_interval="$(echo `ffprobe ${source} 2>&1 | grep -oE '[[:digit:]]+(.[[:digit:]]+)? fps' | grep -oE '[[:digit:]]+(.[[:digit:]]+)?'`*2 | bc || echo '')"
+key_frames_interval=$(echo "$(ffprobe "$source" 2>&1 | grep -oE '[[:digit:]]+(.[[:digit:]]+)? fps' | grep -oE '[[:digit:]]+(.[[:digit:]]+)?')*2" | bc 2>/dev/null || echo "")
 key_frames_interval=${key_frames_interval:-50}
-key_frames_interval=$(echo `printf "%.1f\n" $(bc -l <<<"$key_frames_interval/10")`*10 | bc) # round
+key_frames_interval=$(echo "$(printf "%.1f\n" "$(bc -l <<<"$key_frames_interval/10")")*10" | bc) # round
 key_frames_interval=${key_frames_interval%.*} # truncate to integer
 
 # Find the audio sample rate, we really shouldn't change this during encodes
-audio_sample_rate="$(echo `ffprobe ${source} 2>&1 | grep -oE '[[:digit:]]+(.[[:digit:]]+)? Hz' | grep -oE '[[:digit:]]+(.[[:digit:]]+)?'`)"
+audio_sample_rate=$(ffprobe "$source" 2>&1 | grep -oE '[[:digit:]]+(.[[:digit:]]+)? Hz' | grep -oE '[[:digit:]]+(.[[:digit:]]+)?')
 
 # static parameters that are similar for all renditions
 static_params="-c:a aac -ar ${audio_sample_rate} -c:v h264 -profile:v main -crf 20 -sc_threshold 0"

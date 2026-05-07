@@ -1,0 +1,16 @@
+{
+  "name": "nodejs-webpage2video",
+  "version": "1.0.0",
+  "description": "Records a specified URL for a set duration, outputting an MP4 video.",
+  "main": "webpage2video.js",
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "puppeteer-screen-recorder": "^2.1.2",
+    "sanitize-filename": "^1.6.3"
+  },
+  "scripts": {
+    "start": "node webpage2video.js"
+  },
+  "author": "",
+  "license": "ISC"
+}

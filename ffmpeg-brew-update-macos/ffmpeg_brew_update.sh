@@ -1,5 +1,8 @@
 # Decklink requires you to download and install decklinkSDK from Blackmagic as it just doesn't work, but even then - I can't get it to work.
 
+# With recent brew updates, there's a need to trust certain casks. Obviously you need to review and be happy with this cask:
+brew trust homebrew-ffmpeg/ffmpeg
+
 #tidying up by forcefully uninstalling stuff…
 brew uninstall --force --ignore-dependencies ffmpeg
 brew uninstall --force chromaprint amiaopensource/amiaos/decklinksdk

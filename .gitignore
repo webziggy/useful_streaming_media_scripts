@@ -1,1 +1,7 @@
 .DS_Store
+node_modules/
+*.mp4
+*.m3u8
+*.mpd
+Thumbs.db
+.env

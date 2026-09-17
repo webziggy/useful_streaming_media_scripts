@@ -54,18 +54,16 @@ REQUIRE_FILTERS="${FFMPEG_REQUIRE_FILTERS-silencedetect atrim showwavespic}"
 #   reason
 # When 'formula' is set, --exclusions and every rebuild check whether a newer formula or
 # ffmpeg is available and say it's worth trying again with --include.
-EXCLUSIONS="$(cat <<'EOF'
+# (Read with 'read' rather than $(cat <<EOF): bash 3.2, as shipped with macOS, misparses
+# quotes and brackets in a here-document inside $(...).)
+IFS= read -r -d '' EXCLUSIONS <<'EOF'
 chromaprint||||||chromaprint itself depends on ffmpeg, so building ffmpeg with it is circular. chromaprint is installed separately instead.
 alt-name||||||Not a library: installs the tools as ffmpeg-alt, ffprobe-alt and so on. Not wanted.
-game-music-emu||||||Reason not recorded (excluded in the original script).
-decklink||||||Needs the Blackmagic DeckLink SDK installed by hand, and still wouldn't build with it.
-openvino||||||Reason not recorded (excluded in the original script). OpenVINO is a very large machine-learning dependency.
-whisper-cpp||||||Reason not recorded (excluded in the original script). Transcription is done in MacWhisper instead.
-librsvg||||||Reason not recorded (excluded in the original script).
-libflite||||||Reason not recorded (excluded in the original script).
-openapv|openapv|1.1.1.0|9.0.1|0.3.0.0|2026-09-16|openapv 1.1.1.0 changed the arguments of oapvm_create(), so ffmpeg 9.0.1's liboapvenc.c fails to compile ("too few arguments to function call"). The upgrade from 0.3.0.0 also broke the existing ffmpeg at run time (liboapv.3.dylib not found).
+decklink|||9.0.1||2026-09-17|Needs the Blackmagic DeckLink SDK installed by hand: without it, configure stops with "ERROR: DeckLinkAPI.h not found" (tested 2026-09-17 with ffmpeg 9.0.1).
+libflite|||9.0.1||2026-09-17|The tap's option doesn't install the flite library, so configure stops with "ERROR: libflite not found" ('flite/flite.h' file not found) (tested 2026-09-17 with ffmpeg 9.0.1). Untested: it may build after 'brew install flite'.
+openapv|openapv|1.1.1.0|9.0.1|0.3.0.0|2026-09-16|openapv 1.1.1.0 changed the arguments of oapvm_create(), so ffmpeg 9.0.1's liboapvenc.c fails to compile ("too few arguments to function call, expected 2, have 1"; confirmed again 2026-09-17). The upgrade from 0.3.0.0 also broke the existing ffmpeg at run time (liboapv.3.dylib not found).
 EOF
-)"
+EXCLUSIONS="${EXCLUSIONS%$'\n'}"
 
 usage() {
   # Print the comment block at the top of this file, without the leading '# '.

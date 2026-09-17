@@ -114,9 +114,11 @@ The current exclusions:
 |---|---|
 | `chromaprint` | chromaprint itself depends on FFmpeg, so building FFmpeg with it would be circular. It's installed separately instead. |
 | `alt-name` | Not a library: it installs the tools as `ffmpeg-alt`, `ffprobe-alt` and so on. |
-| `decklink` | Needs the Blackmagic DeckLink SDK installed by hand, and still wouldn't build with it. |
+| `decklink` | Needs the Blackmagic DeckLink SDK installed by hand. Without it, configure stops with `ERROR: DeckLinkAPI.h not found`. |
+| `libflite` | The tap's option doesn't install the flite library, so configure stops with `ERROR: libflite not found`. It may build after `brew install flite` (untested). |
 | `openapv` | openapv 1.1.1.0 changed the arguments of `oapvm_create()`, so FFmpeg 9.0.1 fails to compile against it. The upgrade from 0.3.0.0 also broke the existing FFmpeg, which could no longer find `liboapv.3.dylib`. |
-| `game-music-emu`, `openvino`, `whisper-cpp`, `librsvg`, `libflite` | Excluded in the original version of the script; the reasons weren't recorded and are probably earlier build failures. |
+
+`game-music-emu`, `openvino`, `whisper-cpp` and `librsvg` used to be excluded too, with no reason recorded. Each was test-built on its own on 17 September 2026 with FFmpeg 9.0.1: all four built and passed the checks, so they are now included. `openvino` and `whisper-cpp` bring in large dependencies (OpenVINO, whisper.cpp, llama.cpp, ONNX, OpenBLAS). To leave either out, add it back to `EXCLUSIONS` with that as the reason.
 
 Run `./ffmpeg_brew_update.sh --exclusions` for the full, current list.
 

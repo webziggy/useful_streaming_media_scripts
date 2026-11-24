@@ -64,7 +64,7 @@ Options are checked when the script starts, so a misspelt option, an `--include`
 9. **Builds FFmpeg** with the chosen options. With `--decklink-sdk`, the SDK's headers are copied into Homebrew's `include` folder just for the build.
 10. **Checks the new FFmpeg**, and reports failure if any check fails.
 11. **Installs or upgrades `chromaprint`** (for `fpcalc`) and checks that it starts. This comes last, and skips chromaprint's dependencies, because chromaprint depends on FFmpeg: installing it any earlier makes Homebrew fetch homebrew-core's FFmpeg in place of the tap's.
-12. **Prints a summary:** FFmpeg's version before and after, how many options were included and skipped, how many dependencies were upgraded or reinstalled, chromaprint's version, and how long each step took. A macOS notification says whether the rebuild worked.
+12. **Prints a summary:** FFmpeg's version before and after, how many options were included and skipped, how many dependencies were upgraded or reinstalled, chromaprint's version, and how long each step took. A macOS notification says whether the rebuild worked. In iTerm2, WezTerm and Ghostty the terminal posts it, so it needs that terminal's notifications to be allowed (in iTerm2: Settings → Profiles → Terminal → Notification Center alerts). Elsewhere it comes from `osascript`, which macOS shows as Script Editor; allow that in System Settings → Notifications if nothing appears.
 
 Each step's heading shows the time it started. If the run is interrupted or fails after step 7, it says that FFmpeg is not installed right now and that running the script again will build it.
 

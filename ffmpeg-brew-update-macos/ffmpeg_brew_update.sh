@@ -127,11 +127,14 @@ for list in "$REQUIRE_ENCODERS" "$REQUIRE_DECODERS" "$REQUIRE_FILTERS"; do
 done
 set +f
 
-# Colour on a terminal only (the log gets the text without it).
+# Colour on a terminal only (the log gets the text without it). Colours are never combined
+# with bold: terminals set to draw bold text in a custom colour (iTerm2 can) would lose them.
 if [ -t 1 ]; then
-  C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'; C_RED=$'\033[1;31m'; C_GREEN=$'\033[1;32m'
-  C_YELLOW=$'\033[1;33m'; C_BLUE=$'\033[1;34m'; C_OFF=$'\033[0m'
+  IS_TTY=1
+  C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'; C_RED=$'\033[31m'; C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'; C_BLUE=$'\033[34m'; C_OFF=$'\033[0m'
 else
+  IS_TTY=0
   C_BOLD=""; C_DIM=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_OFF=""
 fi
 
@@ -262,7 +265,14 @@ fail() {
   echo "Log: $LOG"
   exit 1
 }
+# A desktop notification. Terminals that understand the OSC 9 escape code (iTerm2, WezTerm,
+# Ghostty) post it themselves, with their own notification permission; it goes straight to
+# the terminal, not the log. Elsewhere osascript is used, which macOS shows as coming from
+# Script Editor (allow that in System Settings > Notifications if nothing appears).
 notify() {
+  case "$IS_TTY:${TERM_PROGRAM:-}" in
+    1:iTerm.app|1:WezTerm|1:ghostty) printf '\033]9;%s\007' "ffmpeg_brew_update: $1" >/dev/tty 2>/dev/null && return ;;
+  esac
   osascript -e "display notification \"$1\" with title \"ffmpeg_brew_update\"" >/dev/null 2>&1 || true
 }
 

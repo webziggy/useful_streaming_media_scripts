@@ -9,7 +9,7 @@ Homebrew's own `ffmpeg` is a ready-made build with a fixed set of features. The 
 ```bash
 chmod +x ffmpeg_brew_update.sh
 ./ffmpeg_brew_update.sh --help      # how to use it
-./ffmpeg_brew_update.sh             # check FFmpeg; rebuild only if it's broken or missing
+./ffmpeg_brew_update.sh             # check FFmpeg; rebuild only if it's broken, missing or outdated
 ```
 
 After any `brew upgrade`:
@@ -23,8 +23,8 @@ After any `brew upgrade`:
 
 | Command | What it does |
 |---|---|
-| `./ffmpeg_brew_update.sh` | Checks the installed FFmpeg. Rebuilds only if it's missing or fails the checks. |
-| `--check` | Only runs the checks and changes nothing. Exits with `0` if FFmpeg is working and `1` if not, so it can be used in other scripts. |
+| `./ffmpeg_brew_update.sh` | Checks the installed FFmpeg. Rebuilds only if it's missing, fails the checks, or the tap offers a newer version. |
+| `--check` | Only runs the checks and changes nothing. Exits with `0` if FFmpeg is working and up to date, and `1` if not, so it can be used in other scripts. |
 | `--force` | Rebuilds even if FFmpeg is working: after a `brew upgrade`, or to pick up options newly added to the tap. |
 | `--clean` | Like `--force`, but first force-uninstalls and reinstalls `chromaprint` and `zvbi`. Use it if the rebuild fails at the dependency step. |
 | `--exclusions` | Lists every excluded option and why it's excluded, then asks Homebrew whether a library that broke the build has had a new release worth trying. |
@@ -38,17 +38,19 @@ Options are checked when the script starts, so a misspelt option, an `--include`
 
 ## 📝 What a rebuild does
 
-1. **Checks the current FFmpeg** (see [The checks](#-the-checks)). Without `--force`, it stops here if everything passes, and also if FFmpeg works but only a required feature is missing.
+1. **Checks the current FFmpeg** (see [The checks](#-the-checks)). Without `--force`, it stops here if everything passes, and also if FFmpeg works but only a required feature is missing. It carries on if FFmpeg is broken, isn't the tap's build, or is older than the version the tap now offers.
 2. **Updates Homebrew** (`brew update`), trusts the `homebrew-ffmpeg/ffmpeg` tap (recent Homebrew versions require this for third-party taps) and taps it.
 3. **Checks the exclusions** for any broken library that has a newer version since (see [Watching broken libraries](#-watching-broken-libraries)).
-4. **Installs `chromaprint` and `zvbi`**, the latter from the `lescanauxdiscrets/tap` tap.
-5. **Uninstalls the old FFmpeg**, without removing its dependencies.
-6. **Chooses the options:** every `--with-*` option the tap offers, except those listed in `EXCLUSIONS`. It prints each option as `include` or `skip`, and warns if an excluded option no longer exists in the tap.
+4. **Installs `zvbi`** from the `lescanauxdiscrets/tap` tap.
+5. **Chooses the options:** every `--with-*` option the tap offers, except those listed in `EXCLUSIONS`. It prints each option as `include` or `skip`, and warns if an excluded option no longer exists in the tap.
+6. **Uninstalls the old FFmpeg**, without removing its dependencies. This has to come before the next step: while the tap's FFmpeg is installed, upgrading its libraries can make Homebrew try to replace it with homebrew-core's FFmpeg, which fails.
 7. **Brings FFmpeg's dependencies up to date** before compiling:
    - upgrades every installed dependency that is out of date;
-   - reinstalls any dependency Homebrew lists as installed whose files are missing.
+   - reinstalls any dependency Homebrew lists as installed whose files are missing;
+   - leaves alone the libraries of excluded options (such as `openapv`), unless put back with `--include`. FFmpeg isn't built against them, and upgrading one can break things.
 8. **Builds FFmpeg** with the chosen options.
 9. **Checks the new FFmpeg**, and reports failure if any check fails.
+10. **Installs or upgrades `chromaprint`** (for `fpcalc`) and checks that it starts. This comes last, and skips chromaprint's dependencies, because chromaprint depends on FFmpeg: installing it any earlier makes Homebrew fetch homebrew-core's FFmpeg in place of the tap's.
 
 ## ✅ The checks
 
@@ -59,6 +61,7 @@ A build that compiles can still be broken, so the script checks what matters in 
 - `brew linkage --test ffmpeg` finds no broken or missing libraries. Its "Indirect dependencies with linkage" notice is shown but isn't a failure: it only means FFmpeg uses libraries it doesn't list as direct dependencies.
 - A real round trip works: it generates a one-second tone, writes it as a WAV file and reads it back with `ffprobe`.
 - The required encoders, decoders and filters are present (see below).
+- The installed FFmpeg is the `homebrew-ffmpeg/ffmpeg` build, and `brew outdated` doesn't list a newer version of it. An outdated FFmpeg that works is rebuilt on a normal run; `--check` reports it and exits with `1`.
 
 ### Required features
 

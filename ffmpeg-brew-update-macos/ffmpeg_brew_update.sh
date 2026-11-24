@@ -3,10 +3,10 @@
 # after bringing its dependencies up to date, and check the result actually runs.
 #
 # Usage:
-#   ffmpeg_brew_update.sh                 check first; rebuild only if ffmpeg is broken or missing
+#   ffmpeg_brew_update.sh                 check first; rebuild only if ffmpeg is broken, missing or outdated
 #   ffmpeg_brew_update.sh --force         rebuild anyway (e.g. after a brew upgrade, or to pick up new options)
 #   ffmpeg_brew_update.sh --clean         also force-uninstall and reinstall chromaprint and zvbi first
-#   ffmpeg_brew_update.sh --check         only run the checks, change nothing
+#   ffmpeg_brew_update.sh --check         only run the checks (including for a newer version), change nothing
 #   ffmpeg_brew_update.sh --exclusions    list the excluded options, why, and whether a
 #                                         broken library has a newer version worth trying
 #   ffmpeg_brew_update.sh --force --include openapv
@@ -108,7 +108,8 @@ done
 
 # The stable version Homebrew currently offers for a formula (empty if unknown).
 available_version() {
-  brew info "$1" 2>/dev/null | sed -nE '1s/.*: stable ([^ ,]+).*/\1/p'
+  # The first line is "==> name: stable 1.2", or "==> name: 1.1 → stable 1.2" when outdated.
+  brew info "$1" 2>/dev/null | sed -nE '1s/.*[: ]stable ([^ ,]+).*/\1/p'
 }
 
 # True if version $1 is newer than version $2.
@@ -163,6 +164,10 @@ exec > >(tee -a "$LOG") 2>&1
 # Uninstalling ffmpeg otherwise makes Homebrew autoremove every library only ffmpeg used
 # (openapv, sdl2-compat, sdl3 and others), which are then reinstalled moments later.
 export HOMEBREW_NO_AUTOREMOVE=1
+# Upgrading a library otherwise makes Homebrew upgrade its outdated dependents too, which can
+# pull in homebrew-core's ffmpeg (chromaprint depends on it) or rebuild the tap's ffmpeg itself.
+# This script rebuilds ffmpeg and chromaprint itself, so it doesn't need that.
+export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
 
 step() { echo; echo "==> $*"; }
 fail() { echo; echo "FAILED: $*"; echo "Log: $LOG"; exit 1; }
@@ -238,13 +243,45 @@ check_ffmpeg() {
   return 0
 }
 
+# Is the installed ffmpeg the build from the tap, and the version the tap currently offers?
+# Prints why not and returns 1 if it isn't the tap build, 3 if it's outdated, else 0.
+check_install() {
+  if ! brew list --formula --full-name 2>/dev/null | grep -qx -- "$FORMULA"; then
+    echo "The installed ffmpeg is not the $FORMULA build (another ffmpeg is installed or first on PATH)."
+    return 1
+  fi
+  # 'brew outdated' prints e.g. "homebrew-ffmpeg/ffmpeg/ffmpeg (9.0.1) < 9.1" when a newer
+  # version is available, and nothing when it's current.
+  local outdated
+  outdated="$(brew outdated --formula --verbose "$FORMULA" 2>/dev/null)"
+  if [ -n "$outdated" ]; then
+    echo "ffmpeg is outdated: $outdated"
+    return 3
+  fi
+  echo "ffmpeg is the latest version the tap offers ($(brew list --versions ffmpeg | awk '{print $2}'))."
+  return 0
+}
+
 echo "ffmpeg_brew_update: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Log: $LOG"
 
 step "Checking the current ffmpeg"
 check_ffmpeg
 status=$?
-if [ $status -eq 0 ]; then
+if [ $status -ne 1 ]; then
+  check_install
+  case $? in
+    1) status=1 ;;
+    3) status=3 ;;
+  esac
+fi
+if [ $status -eq 3 ]; then
+  echo "ffmpeg works, but a newer version is available."
+  if [ $CHECK_ONLY -eq 1 ]; then
+    echo "Run without --check to update it."
+    exit 1
+  fi
+elif [ $status -eq 0 ]; then
   echo "ffmpeg is working."
   if [ $CHECK_ONLY -eq 1 ] || [ $FORCE -eq 0 ]; then
     [ $CHECK_ONLY -eq 0 ] && echo "Nothing to do (use --force to rebuild anyway)."
@@ -278,18 +315,17 @@ if [ $CLEAN -eq 1 ]; then
   brew uninstall --force --ignore-dependencies chromaprint zvbi 2>/dev/null || true
 fi
 
-step "Installing helpers (chromaprint, zvbi)"
-brew install chromaprint || fail "chromaprint"
+# chromaprint is installed after the build: it depends on ffmpeg, so installing or upgrading
+# it now would make Homebrew fetch homebrew-core's ffmpeg in place of the tap's.
+step "Installing zvbi"
 brew tap lescanauxdiscrets/tap || fail "tap lescanauxdiscrets/tap"
 brew install lescanauxdiscrets/tap/zvbi || fail "zvbi"
-
-step "Removing the old ffmpeg"
-brew uninstall --force --ignore-dependencies ffmpeg 2>/dev/null || true
 
 step "Choosing options"
 EXCLUDED="$(cut -d'|' -f1 <<<"$EXCLUSIONS")"
 OPTIONS=""
-for opt in $(brew options "$FORMULA" | grep -E -- '^--with-' | awk '{print $1}'); do
+TAP_OPTIONS="$(brew options "$FORMULA" | grep -E -- '^--with-' | awk '{print $1}')"
+for opt in $TAP_OPTIONS; do
   name="${opt#--with-}"
   if grep -qx -- "$name" <<<"$EXCLUDED"; then
     if echo " $INCLUDE " | grep -q -- " $name "; then
@@ -304,18 +340,39 @@ for opt in $(brew options "$FORMULA" | grep -E -- '^--with-' | awk '{print $1}')
 done
 [ -n "$OPTIONS" ] || fail "no options found (is the tap trusted and tapped?)"
 for name in $EXCLUDED; do
-  brew options "$FORMULA" | grep -qx -- "--with-$name" \
+  grep -qx -- "--with-$name" <<<"$TAP_OPTIONS" \
     || echo "  note: excluded option --with-$name no longer exists in the tap; remove it from EXCLUSIONS"
 done
+
+step "Removing the old ffmpeg"
+# This must come before the dependency upgrade: while the tap's ffmpeg is installed, upgrading
+# its libraries can make Homebrew try to upgrade ffmpeg too (to homebrew-core's bottle, which
+# fails). Choosing the options above only reads, so it is done first.
+brew uninstall --force --ignore-dependencies ffmpeg 2>/dev/null || true
 
 step "Bringing ffmpeg's dependencies up to date"
 # Out-of-date or half-upgraded libraries are the usual cause of a broken build or a
 # 'Library not loaded' crash, so upgrade every dependency before compiling against them.
 # Only upgrade what is already installed; the ffmpeg install below adds anything missing.
-ALL_DEPS="$(brew deps --include-build --include-optional "$FORMULA" 2>/dev/null)"
+ALL_DEPS="$(brew deps --include-build --include-optional "$FORMULA")"
+[ -n "$ALL_DEPS" ] || fail "couldn't list ffmpeg's dependencies (brew deps)"
+# Leave alone the libraries of excluded options (unless put back with --include): ffmpeg
+# isn't built against them, and upgrading one can break things (as openapv did).
+SKIP_DEPS=""
+while IFS='|' read -r option formula _; do
+  echo " $INCLUDE " | grep -q -- " $option " && continue
+  SKIP_DEPS="$SKIP_DEPS $option $formula"
+done <<<"$EXCLUSIONS"
+DEPS=""
+for dep in $ALL_DEPS; do
+  case " $SKIP_DEPS " in
+    *" $dep "*) echo "  leaving $dep alone (its option is excluded)" ;;
+    *) DEPS="$DEPS $dep" ;;
+  esac
+done
 OUTDATED="$(brew outdated --formula --quiet 2>/dev/null)"
 UPGRADE=""
-for dep in $ALL_DEPS; do
+for dep in $DEPS; do
   if grep -qx -- "$dep" <<<"$OUTDATED"; then UPGRADE="$UPGRADE $dep"; fi
 done
 if [ -n "$UPGRADE" ]; then
@@ -329,7 +386,7 @@ fi
 echo "Checking installed dependencies for missing files"
 INSTALLED="$(brew list --formula -1 2>/dev/null)"
 PREFIX="$(brew --prefix)"
-for dep in $ALL_DEPS; do
+for dep in $DEPS; do
   if grep -qx -- "$dep" <<<"$INSTALLED" && [ ! -e "$PREFIX/opt/$dep" ]; then
     echo "Reinstalling $dep (installed but its files are missing)"
     brew reinstall "$dep" || fail "reinstalling $dep"
@@ -350,6 +407,15 @@ case $? in
   2) fail "ffmpeg built and works, but a required feature is missing (see above)" ;;
   *) fail "ffmpeg built but the checks did not pass" ;;
 esac
+
+step "Installing chromaprint (fpcalc)"
+# --ignore-dependencies: chromaprint's only dependency is ffmpeg, which is the one just built.
+# Without it Homebrew would replace that with homebrew-core's ffmpeg.
+brew install --ignore-dependencies chromaprint \
+  || fail "installing chromaprint (ffmpeg itself is installed and working)"
+fpcalc -version 2>&1 | head -1
+fpcalc -version >/dev/null 2>&1 \
+  || fail "fpcalc (chromaprint) does not start (ffmpeg itself is installed and working)"
 
 echo
 echo "Done: ffmpeg is installed and working."
